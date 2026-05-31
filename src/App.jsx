@@ -29,7 +29,7 @@ const DEFAULT_THEME = {
 };
 
 const DEFAULT_PROFILE = {
-  name: "Vicky",
+  name: " Muthu Vignesh",
   titleTitle: "Sales & Service Engineer",
   heroHeading: "Designing systems that empower data.",
   tagline: "Biomedical Engineering & Full-Stack Systems Architecture.",
