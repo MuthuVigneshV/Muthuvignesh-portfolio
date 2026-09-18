@@ -61,13 +61,33 @@ const DEFAULT_CUSTOM_SECTIONS = [
   { id: "c1", title: "My Ventures", content: "Explore the ongoing operations and independent startups initiated to revolutionize healthcare tech workflows.", titleColor: '#1d1d1f', contentColor: '#6b7280', ventureLogo: "" }
 ];
 
+// FIX: Safe ID generator — Date.now() alone can collide when two records are
+// created in the same millisecond, causing duplicate keys / overwritten records.
+const genId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+// FIX: Wrapped in try/catch — a corrupted localStorage value would otherwise
+// throw during JSON.parse and crash the whole app on load.
 const getLocalData = (key, fallback) => {
-  const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : fallback;
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : fallback;
+  } catch (err) {
+    console.error(`Failed to read localStorage key "${key}":`, err);
+    return fallback;
+  }
 };
 
+// FIX: Wrapped in try/catch and now reports success/failure — storing base64
+// images can exceed the localStorage quota and throw; this prevents a hard
+// crash and lets callers show a proper message instead.
 const setLocalData = (key, value) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (err) {
+    console.error(`Failed to save localStorage key "${key}":`, err);
+    return false;
+  }
 };
 
 const getFontClass = (type) => {
@@ -364,7 +384,7 @@ function PortfolioHome() {
                 >
                   <div className="w-full h-48 bg-gray-50 border-b border-gray-100 overflow-hidden relative">
                     {proj.photo ? (
-                      <img src={proj.photo} alt={proj.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-102" />
+                      <img src={proj.photo} alt={proj.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-xs text-gray-300 uppercase font-bold tracking-wider">Blueprint Render Missing</div>
                     )}
@@ -486,17 +506,19 @@ function AdminDashboard({ setAuth }) {
     reader.readAsDataURL(file);
   };
 
+  // FIX: setLocalData now reports success/failure (e.g. storage quota exceeded
+  // from large base64 images); surface that instead of failing silently.
   const saveConfigurations = (key, data, toastMsg) => {
-    setLocalData(key, data);
+    const success = setLocalData(key, data);
     // Dispatch structural storage triggers to invoke realtime rendering inside the parent window frame
     window.dispatchEvent(new Event('storage'));
-    triggerToast(toastMsg);
+    triggerToast(success ? toastMsg : 'Save failed — browser storage limit reached. Try a smaller image.');
   };
 
   // Custom Categories Engines
   const createCustomSection = (e) => {
     e.preventDefault();
-    const updated = [...customSections, { id: 'c_' + Date.now(), ...newSection }];
+    const updated = [...customSections, { id: genId('c'), ...newSection }];
     setCustomSections(updated);
     saveConfigurations('vicky_custom_sections', updated, 'New custom category block generated!');
     setNewSection({ title: '', content: '', titleColor: '#1d1d1f', contentColor: '#6b7280', ventureLogo: '' });
@@ -822,7 +844,7 @@ function AdminDashboard({ setAuth }) {
 
         {/* LOG TIMELINE EXPERIENCE WORKSTATION (WITH ZERO-PLACEHOLDER IMAGES & CRUD ACTIONS) */}
         <div className="bg-white border border-gray-200 p-6 rounded-2xl space-y-4 shadow-sm">
-          <form onSubmit={(e) => { e.preventDefault(); const updated = [...experiences, { id: 'e_' + Date.now(), ...newExperience }]; setExperiences(updated); saveConfigurations('vicky_experiences', updated, 'Experience log node appended.'); setNewExperience({ company: '', role: '', duration: '', description: '', companyLogo: '' }); }} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); const updated = [...experiences, { id: genId('e'), ...newExperience }]; setExperiences(updated); saveConfigurations('vicky_experiences', updated, 'Experience log node appended.'); setNewExperience({ company: '', role: '', duration: '', description: '', companyLogo: '' }); }} className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 border-b pb-2">💼 Log Timeline Event</h3>
             
             <div className="grid sm:grid-cols-3 gap-4">
@@ -899,7 +921,7 @@ function AdminDashboard({ setAuth }) {
 
         {/* PROJECT BLUEPRINT RENDER LOG MODULE */}
         <div className="bg-white border border-gray-200 p-6 rounded-2xl space-y-4 shadow-sm">
-          <form onSubmit={(e) => { e.preventDefault(); const updated = [...projects, { id: 'p_' + Date.now(), ...newProject }]; setProjects(updated); saveConfigurations('vicky_projects', updated, 'Project cards compiled.'); setNewProject({ title: '', description: '', web_url: '', category: '', photo: '' }); }} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); const updated = [...projects, { id: genId('p'), ...newProject }]; setProjects(updated); saveConfigurations('vicky_projects', updated, 'Project cards compiled.'); setNewProject({ title: '', description: '', web_url: '', category: '', photo: '' }); }} className="space-y-4">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 border-b pb-2">🚀 Deploy Case Study Card</h3>
             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
               <label className="text-xs font-bold text-gray-700">Project Cover Image Asset</label>
